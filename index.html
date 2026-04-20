@@ -125,26 +125,6 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
   }
-  .toggle-btn {
-    padding: 0.55rem 0.85rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    font-family: inherit;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.15s;
-  }
-  .toggle-btn:hover { background: var(--border-soft); color: var(--text); }
-  .toggle-btn[aria-pressed="true"] {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border-color: #c7d2fe;
-    font-weight: 600;
-  }
-
   .date-hl {
     background: linear-gradient(180deg, transparent 62%, rgba(99, 102, 241, 0.22) 62%);
     padding: 0 2px;
@@ -354,7 +334,6 @@
       <select id="dept-filter" aria-label="부서 필터">
         <option value="">전체 부서</option>
       </select>
-      <button type="button" id="date-toggle" class="toggle-btn" aria-pressed="true" title="날짜 하이라이트 켜기/끄기">📅 날짜</button>
     </div>
   </div>
 </header>
@@ -515,7 +494,7 @@ function applyFilters() {
     if (show) visibleCount++;
   });
   if (q) highlight(q);
-  if (dateHighlightOn) highlightDates(content);
+  highlightDates(content);
   if (rows.length > 0 && visibleCount === 0) {
     const msg = document.createElement('p');
     msg.className = 'empty';
@@ -551,21 +530,6 @@ function highlight(q) {
   };
   walk(content);
 }
-
-const DATE_HL_KEY = 'dateHighlightEnabled';
-let dateHighlightOn = localStorage.getItem(DATE_HL_KEY) !== 'false';
-const dateToggleBtn = document.getElementById('date-toggle');
-function syncDateToggle() {
-  dateToggleBtn.setAttribute('aria-pressed', String(dateHighlightOn));
-  dateToggleBtn.textContent = dateHighlightOn ? '📅 날짜 ON' : '📅 날짜 OFF';
-}
-syncDateToggle();
-dateToggleBtn.addEventListener('click', () => {
-  dateHighlightOn = !dateHighlightOn;
-  localStorage.setItem(DATE_HL_KEY, String(dateHighlightOn));
-  syncDateToggle();
-  if (current) applyFilters();
-});
 
 function highlightDates(root) {
   const now = new Date();
