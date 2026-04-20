@@ -125,6 +125,40 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
   }
+  .toggle-btn {
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .toggle-btn:hover { background: var(--border-soft); color: var(--text); }
+  .toggle-btn[aria-pressed="true"] {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: #c7d2fe;
+    font-weight: 600;
+  }
+
+  .date-hl {
+    background: linear-gradient(180deg, transparent 62%, rgba(99, 102, 241, 0.22) 62%);
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: 500;
+  }
+  .date-hl-today {
+    background: #fee2e2;
+    color: #991b1b;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+  }
 
   .layout {
     max-width: 1400px;
@@ -320,6 +354,7 @@
       <select id="dept-filter" aria-label="부서 필터">
         <option value="">전체 부서</option>
       </select>
+      <button type="button" id="date-toggle" class="toggle-btn" aria-pressed="true" title="날짜 하이라이트 켜기/끄기">📅 날짜</button>
     </div>
   </div>
 </header>
@@ -480,6 +515,7 @@ function applyFilters() {
     if (show) visibleCount++;
   });
   if (q) highlight(q);
+  if (dateHighlightOn) highlightDates(content);
   if (rows.length > 0 && visibleCount === 0) {
     const msg = document.createElement('p');
     msg.className = 'empty';
@@ -514,6 +550,81 @@ function highlight(q) {
     }
   };
   walk(content);
+}
+
+const DATE_HL_KEY = 'dateHighlightEnabled';
+let dateHighlightOn = localStorage.getItem(DATE_HL_KEY) !== 'false';
+const dateToggleBtn = document.getElementById('date-toggle');
+function syncDateToggle() {
+  dateToggleBtn.setAttribute('aria-pressed', String(dateHighlightOn));
+  dateToggleBtn.textContent = dateHighlightOn ? '📅 날짜 ON' : '📅 날짜 OFF';
+}
+syncDateToggle();
+dateToggleBtn.addEventListener('click', () => {
+  dateHighlightOn = !dateHighlightOn;
+  localStorage.setItem(DATE_HL_KEY, String(dateHighlightOn));
+  syncDateToggle();
+  if (current) applyFilters();
+});
+
+function highlightDates(root) {
+  const now = new Date();
+  const todayMonth = now.getMonth() + 1;
+  const todayDay = now.getDate();
+  const patterns = [
+    { re: /(\d{1,2})\.\s*(\d{1,2})\.?(?:\s*\(\s*[월화수목금토일]\s*\))?/g, mIdx: 1, dIdx: 2 },
+    { re: /(\d{1,2})월\s*(\d{1,2})일/g, mIdx: 1, dIdx: 2 }
+  ];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => {
+      const p = node.parentElement;
+      if (!p) return NodeFilter.FILTER_REJECT;
+      if (p.closest('.date-hl')) return NodeFilter.FILTER_REJECT;
+      if (['SCRIPT', 'STYLE', 'H1'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
+      if (p.classList && p.classList.contains('meta-bar')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  let n;
+  while ((n = walker.nextNode())) nodes.push(n);
+  nodes.forEach(textNode => {
+    const text = textNode.nodeValue;
+    const matches = [];
+    patterns.forEach(p => {
+      p.re.lastIndex = 0;
+      let m;
+      while ((m = p.re.exec(text))) {
+        matches.push({
+          start: m.index,
+          end: m.index + m[0].length,
+          text: m[0],
+          month: parseInt(m[p.mIdx], 10),
+          day: parseInt(m[p.dIdx], 10)
+        });
+      }
+    });
+    if (!matches.length) return;
+    matches.sort((a, b) => a.start - b.start || b.end - a.end);
+    const clean = [];
+    let cursor = 0;
+    for (const m of matches) {
+      if (m.start >= cursor) { clean.push(m); cursor = m.end; }
+    }
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    clean.forEach(m => {
+      if (m.start > last) frag.appendChild(document.createTextNode(text.slice(last, m.start)));
+      const span = document.createElement('span');
+      const isToday = m.month === todayMonth && m.day === todayDay;
+      span.className = isToday ? 'date-hl date-hl-today' : 'date-hl';
+      span.textContent = m.text;
+      frag.appendChild(span);
+      last = m.end;
+    });
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    textNode.parentNode.replaceChild(frag, textNode);
+  });
 }
 
 searchInput.addEventListener('input', () => { if (current) applyFilters(); });
