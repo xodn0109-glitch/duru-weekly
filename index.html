@@ -280,6 +280,71 @@
   main tbody tr:last-child td { border-bottom: none; }
   main tr.hidden { display: none; }
 
+  /* 오늘의 일정 카드 */
+  .today-card {
+    background: linear-gradient(135deg, #fef3c7 0%, #fefce8 100%);
+    border: 1px solid #fde68a;
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0 1.5rem;
+    box-shadow: var(--shadow-sm);
+  }
+  .today-header {
+    font-weight: 700;
+    font-size: 0.98rem;
+    color: #92400e;
+    margin-bottom: 0.7rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .today-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .today-list li {
+    display: flex;
+    gap: 0.7rem;
+    padding: 0.5rem 0.5rem;
+    border-top: 1px solid rgba(146, 64, 14, 0.12);
+    font-size: 0.9rem;
+    line-height: 1.55;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.12s;
+  }
+  .today-list li:hover { background: rgba(255, 255, 255, 0.5); }
+  .today-list li:first-child { border-top: none; }
+  .today-dept {
+    font-weight: 600;
+    color: var(--accent);
+    flex-shrink: 0;
+    min-width: 110px;
+  }
+  .today-text { color: var(--text); flex: 1; }
+  .today-note {
+    margin-top: 0.7rem;
+    font-size: 0.76rem;
+    color: #a16207;
+    opacity: 0.8;
+  }
+  .today-card--empty {
+    background: var(--accent-soft);
+    border: 1px dashed #c7d2fe;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.95rem;
+  }
+  @keyframes rowFlash {
+    0% { background: #fef08a; }
+    100% { background: transparent; }
+  }
+  tr.row-flash > td {
+    animation: rowFlash 1.6s ease-out;
+  }
+
   /* 셀 내부 불릿 리스트 (가독성 개선) */
   .cell-list {
     margin: 0;
@@ -426,6 +491,27 @@ DEPARTMENTS.forEach(d => {
   deptFilter.appendChild(opt);
 });
 
+// 오늘의 일정 카드 항목 클릭 → 해당 본문 행으로 스크롤
+content.addEventListener('click', (e) => {
+  const li = e.target.closest('[data-scroll-to]');
+  if (!li) return;
+  const rowId = li.getAttribute('data-scroll-to');
+
+  // 필터로 가려져 있을 수 있으니 초기화 후 재렌더
+  if (searchInput.value || deptFilter.value) {
+    searchInput.value = '';
+    deptFilter.value = '';
+    applyFilters();
+  }
+
+  const target = content.querySelector(`tr[data-row-id="${rowId}"]`);
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.classList.remove('row-flash');
+  void target.offsetWidth; // 애니메이션 재시작 트릭
+  target.classList.add('row-flash');
+});
+
 let current = null;
 let currentHTML = '';
 
@@ -511,6 +597,15 @@ function wrapWithMeta(html, plan) {
   const h1 = doc.querySelector('h1');
   const titleText = h1 ? h1.textContent : plan.label;
   if (h1) h1.remove();
+
+  // 표 행에 ID 부여 (오늘 일정 카드에서 클릭 시 스크롤 타겟)
+  doc.querySelectorAll('tbody tr').forEach((tr, idx) => {
+    tr.setAttribute('data-row-id', `row-${idx}`);
+  });
+
+  // 오늘의 일정 카드 생성
+  const todayCard = buildTodayCard(doc.body);
+
   const body = doc.body.innerHTML;
   return `
     <h1>${titleText}</h1>
@@ -519,7 +614,109 @@ function wrapWithMeta(html, plan) {
       <span>·</span>
       <span>${plan.month}월 ${plan.weeks.replace('-', '~')}주차 업무 계획</span>
     </div>
+    ${todayCard}
     ${body}
+  `;
+}
+
+// 텍스트에서 한국어 날짜 패턴(4.21 / 4. 21. / 4.21(화) / 4월 21일) 추출
+function findDates(text) {
+  const dates = [];
+  const reA = /(?<![0-9])(\d{1,2})\.\s*(\d{1,2})\.?(?:\s*\(\s*[월화수목금토일]\s*\))?(?![0-9])/g;
+  const reB = /(?<![0-9])(\d{1,2})월\s*(\d{1,2})일(?![0-9])/g;
+  for (const re of [reA, reB]) {
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const mo = parseInt(m[1], 10);
+      const dy = parseInt(m[2], 10);
+      if (mo >= 1 && mo <= 12 && dy >= 1 && dy <= 31) {
+        dates.push({ month: mo, day: dy, start: m.index, end: m.index + m[0].length });
+      }
+    }
+  }
+  return dates.sort((a, b) => a.start - b.start);
+}
+
+// 텍스트에 오늘 날짜가 (단일 날짜 또는 ~로 구분된 범위 안에) 포함되는지
+function isItemToday(text, todayMonth, todayDay) {
+  const dates = findDates(text);
+  if (dates.length === 0) return false;
+  if (dates.some(d => d.month === todayMonth && d.day === todayDay)) return true;
+  for (let i = 0; i < dates.length - 1; i++) {
+    const between = text.substring(dates[i].end, dates[i + 1].start);
+    if (/~/.test(between)) {
+      const t = todayMonth * 100 + todayDay;
+      const a = dates[i].month * 100 + dates[i].day;
+      const b = dates[i + 1].month * 100 + dates[i + 1].day;
+      if (t >= a && t <= b) return true;
+    }
+  }
+  return false;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function buildTodayCard(bodyEl) {
+  const now = new Date();
+  const dow = now.getDay(); // 0=일, 6=토
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const dowKor = ['일','월','화','수','목','금','토'][dow];
+  const dateStr = `${month}월 ${day}일 ${dowKor}요일`;
+
+  // 주말은 일정 없음
+  if (dow === 0 || dow === 6) {
+    return `<div class="today-card today-card--empty">📅 오늘 (${dateStr}) 해당 일정 없음</div>`;
+  }
+
+  // 본문에서 오늘 매칭 항목 추출
+  const items = [];
+  bodyEl.querySelectorAll('tbody tr').forEach(tr => {
+    const tds = tr.querySelectorAll('td');
+    if (tds.length < 2) return;
+    const dept = tds[0].textContent.replace(/\s+/g, ' ').trim();
+    const cell = tds[1];
+    const rowId = tr.getAttribute('data-row-id');
+
+    const lis = cell.querySelectorAll('li');
+    if (lis.length > 0) {
+      lis.forEach(li => {
+        const text = li.textContent.replace(/\s+/g, ' ').trim();
+        if (text && isItemToday(text, month, day)) {
+          items.push({ dept, text, rowId });
+        }
+      });
+    } else {
+      // <ul> 변환 안 된 셀: <br> 단위로 분할
+      cell.innerHTML.split(/<br\s*\/?>/i).forEach(part => {
+        const txt = part.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        if (txt && isItemToday(txt, month, day)) {
+          items.push({ dept, text: txt, rowId });
+        }
+      });
+    }
+  });
+
+  if (items.length === 0) {
+    return `<div class="today-card today-card--empty">📅 오늘 (${dateStr}) 해당 일정 없음</div>`;
+  }
+
+  const itemsHtml = items.map(it => `
+    <li data-scroll-to="${it.rowId}" title="클릭하면 본문으로 이동">
+      <span class="today-dept">${escapeHtml(it.dept)}</span>
+      <span class="today-text">${escapeHtml(it.text)}</span>
+    </li>
+  `).join('');
+
+  return `
+    <div class="today-card">
+      <div class="today-header">📅 오늘 (${dateStr}) 일정 요약</div>
+      <ul class="today-list">${itemsHtml}</ul>
+      <div class="today-note">날짜가 명시된 항목만 자동 추출 · 항목 클릭 시 본문 위치로 이동</div>
+    </div>
   `;
 }
 
