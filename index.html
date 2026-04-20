@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>두루고 주간업무계획</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --border-soft: #f1f3f5;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --text-subtle: #94a3b8;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --highlight: #fef08a;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+                 system-ui, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    margin: 0;
+    color: var(--text);
+    background: var(--bg);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: saturate(180%) blur(8px);
+    background: rgba(255, 255, 255, 0.85);
+  }
+  .header-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+  }
+  .brand-logo {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    display: grid; place-items: center;
+    color: white;
+    font-size: 1.05rem;
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+  }
+  .brand-sub {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.88rem;
+    margin-left: 0.1rem;
+  }
+
+  .controls {
+    display: flex;
+    gap: 0.6rem;
+    flex: 1;
+    min-width: 280px;
+    max-width: 620px;
+    justify-content: flex-end;
+  }
+  .search-wrap { flex: 1; position: relative; min-width: 180px; }
+  .search-wrap::before {
+    content: '';
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    width: 16px; height: 16px;
+    transform: translateY(-50%);
+    background: no-repeat center/contain
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>");
+    pointer-events: none;
+  }
+  .controls input, .controls select {
+    width: 100%;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.92rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .controls input { padding-left: 2.3rem; }
+  .controls select {
+    min-width: 150px;
+    cursor: pointer;
+    appearance: none;
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 14px;
+    padding-right: 2rem;
+  }
+  .controls input:focus, .controls select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  }
+
+  .layout {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem 2rem;
+    align-items: start;
+  }
+
+  aside {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.6rem;
+    position: sticky;
+    top: 96px;
+    box-shadow: var(--shadow-sm);
+    max-height: calc(100vh - 120px);
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar-title {
+    padding: 0.6rem 0.8rem 0.8rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  aside ul { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; }
+  aside li {
+    padding: 0.7rem 0.85rem;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    transition: background 0.12s, color 0.12s;
+  }
+  aside li:hover { background: var(--border-soft); color: var(--text); }
+  aside li.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  aside li .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-subtle);
+    flex-shrink: 0;
+  }
+  aside li.active .dot { background: var(--accent); }
+  .today-btn {
+    margin: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+  .today-btn:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent-soft);
+  }
+
+  main {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem 2.25rem;
+    box-shadow: var(--shadow-sm);
+    min-width: 0;
+  }
+  main h1 {
+    margin: 0 0 0.3rem 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .meta-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .meta-bar .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  main table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 0.4rem;
+    font-size: 0.93rem;
+  }
+  main thead { display: none; }
+  main tbody tr { transition: background 0.12s; }
+  main tbody tr:hover { background: #fafbff; }
+  main td {
+    padding: 1rem 1.1rem;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border-soft);
+    line-height: 1.7;
+  }
+  main td:first-child {
+    font-weight: 600;
+    color: var(--accent);
+    width: 170px;
+    white-space: nowrap;
+    padding-right: 1.25rem;
+  }
+  main td:last-child { color: var(--text); }
+  main tbody tr:last-child td { border-bottom: none; }
+  main tr.hidden { display: none; }
+
+  mark {
+    background: var(--highlight);
+    color: var(--text);
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+
+  .empty {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--text-subtle);
+    font-size: 0.95rem;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 999px;
+    border: 2px solid var(--bg);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; padding: 1rem; }
+    aside { position: static; max-height: none; }
+    header { padding: 1rem 1.25rem; }
+    main { padding: 1.5rem 1.25rem; }
+    main td:first-child { width: auto; white-space: normal; }
+    main td { padding: 0.85rem 0.75rem; }
+    .controls { max-width: none; width: 100%; justify-content: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-logo">📋</div>
+      <div>
+        두루고 주간업무계획
+        <div class="brand-sub">Weekly Work Plan</div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="search-wrap">
+        <input type="text" id="search" placeholder="검색어 입력">
+      </div>
+      <select id="dept-filter" aria-label="부서 필터">
+        <option value="">전체 부서</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="sidebar-title">주차 선택</div>
+    <ul id="plan-list"></ul>
+    <button class="today-btn" id="today-btn">📍 이번 주로 이동</button>
+  </aside>
+  <main id="content"><p class="empty">좌측에서 주차를 선택하세요.</p></main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<script>
+const FILES = [
+  'weekly_plan_2026_03_week1-2.md',
+  'weekly_plan_2026_03_week3-4.md',
+  'weekly_plan_2026_03_week4.md',
+  'weekly_plan_2026_04_week1.md',
+  'weekly_plan_2026_04_week2.md',
+  'weekly_plan_2026_04_week3-4.md',
+];
+
+const DEPARTMENTS = [
+  '교장·교감', '교무기획부', '교육과정부', '교육과정기획부',
+  '평가지원부', '평생교육부', '체육부', '진로진학상담부',
+  '학생생활안전부', '미래역량강화부', '교육정보부', '학년부',
+  '행정실', '안내사항',
+];
+
+function parseFile(f) {
+  const m = f.match(/weekly_plan_(\d{4})_(\d{2})_week(\d+(?:-\d+)?)\.md/);
+  if (!m) return null;
+  return {
+    file: f,
+    year: +m[1],
+    month: +m[2],
+    weeks: m[3],
+    label: `${m[1]}학년도 ${+m[2]}월 ${m[3].replace('-', '~')}주`,
+    sortKey: +m[1] * 10000 + +m[2] * 100 + +m[3].split('-')[0],
+  };
+}
+
+const plans = FILES.map(parseFile).filter(Boolean).sort((a, b) => a.sortKey - b.sortKey);
+
+const searchInput = document.getElementById('search');
+const deptFilter = document.getElementById('dept-filter');
+const planList = document.getElementById('plan-list');
+const content = document.getElementById('content');
+
+DEPARTMENTS.forEach(d => {
+  const opt = document.createElement('option');
+  opt.value = d;
+  opt.textContent = d;
+  deptFilter.appendChild(opt);
+});
+
+let current = null;
+let currentHTML = '';
+
+plans.forEach(p => {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="dot"></span><span>${p.label}</span>`;
+  li.addEventListener('click', () => load(p));
+  p.el = li;
+  planList.appendChild(li);
+});
+
+function findCurrentPlan(date = new Date()) {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const wk = Math.min(5, Math.ceil(d / 7));
+  const candidates = plans.filter(p => {
+    if (p.year !== y || p.month !== m) return false;
+    const parts = p.weeks.split('-').map(Number);
+    return parts.length === 1
+      ? parts[0] === wk
+      : wk >= parts[0] && wk <= parts[1];
+  });
+  if (candidates.length) {
+    return candidates.sort((a, b) =>
+      (a.weeks.includes('-') ? 2 : 1) - (b.weeks.includes('-') ? 2 : 1))[0];
+  }
+  const key = y * 10000 + m * 100 + wk;
+  const past = plans.filter(p => p.sortKey <= key);
+  return past.length ? past[past.length - 1] : plans[plans.length - 1];
+}
+
+async function load(plan, scrollSidebar = true) {
+  if (current) current.el.classList.remove('active');
+  plan.el.classList.add('active');
+  current = plan;
+  if (scrollSidebar) {
+    plan.el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  try {
+    const res = await fetch(plan.file);
+    if (!res.ok) throw new Error(res.status);
+    const md = await res.text();
+    const rendered = marked.parse(md);
+    currentHTML = wrapWithMeta(rendered, plan);
+    applyFilters();
+  } catch (e) {
+    content.innerHTML = `<p class="empty" style="color:#dc2626">파일 로드 실패: ${plan.file} (${e.message})</p>`;
+  }
+}
+
+function wrapWithMeta(html, plan) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const h1 = doc.querySelector('h1');
+  const titleText = h1 ? h1.textContent : plan.label;
+  if (h1) h1.remove();
+  const body = doc.body.innerHTML;
+  return `
+    <h1>${titleText}</h1>
+    <div class="meta-bar">
+      <span class="chip">${plan.year}학년도</span>
+      <span>·</span>
+      <span>${plan.month}월 ${plan.weeks.replace('-', '~')}주차 업무 계획</span>
+    </div>
+    ${body}
+  `;
+}
+
+function applyFilters() {
+  content.innerHTML = currentHTML;
+  const q = searchInput.value.trim();
+  const dept = deptFilter.value;
+  const rows = content.querySelectorAll('table tbody tr');
+  let visibleCount = 0;
+  rows.forEach(tr => {
+    const tds = tr.querySelectorAll('td');
+    if (tds.length < 2) return;
+    const deptText = tds[0].textContent.trim();
+    const rowText = tr.textContent;
+    const matchDept = !dept || deptText.includes(dept);
+    const matchSearch = !q || rowText.toLowerCase().includes(q.toLowerCase());
+    const show = matchDept && matchSearch;
+    tr.classList.toggle('hidden', !show);
+    if (show) visibleCount++;
+  });
+  if (q) highlight(q);
+  if (rows.length > 0 && visibleCount === 0) {
+    const msg = document.createElement('p');
+    msg.className = 'empty';
+    msg.textContent = '검색/필터 조건에 해당하는 항목이 없습니다.';
+    content.appendChild(msg);
+  }
+}
+
+function highlight(q) {
+  const ql = q.toLowerCase();
+  const walk = (node) => {
+    if (node.nodeType === 3) {
+      const text = node.textContent;
+      const lower = text.toLowerCase();
+      const idx = lower.indexOf(ql);
+      if (idx >= 0) {
+        const before = text.slice(0, idx);
+        const match = text.slice(idx, idx + q.length);
+        const after = text.slice(idx + q.length);
+        const frag = document.createDocumentFragment();
+        if (before) frag.appendChild(document.createTextNode(before));
+        const mark = document.createElement('mark');
+        mark.textContent = match;
+        frag.appendChild(mark);
+        const afterNode = document.createTextNode(after);
+        frag.appendChild(afterNode);
+        node.parentNode.replaceChild(frag, node);
+        walk(afterNode);
+      }
+    } else if (node.nodeType === 1 && !['MARK', 'SCRIPT', 'STYLE'].includes(node.tagName)) {
+      [...node.childNodes].forEach(walk);
+    }
+  };
+  walk(content);
+}
+
+searchInput.addEventListener('input', () => { if (current) applyFilters(); });
+deptFilter.addEventListener('change', () => { if (current) applyFilters(); });
+document.getElementById('today-btn').addEventListener('click', () => {
+  const p = findCurrentPlan();
+  if (p) load(p);
+});
+
+if (plans.length) load(findCurrentPlan());
+</script>
+
+</body>
+</html>
