@@ -411,9 +411,90 @@
     main td { padding: 0.85rem 0.75rem; }
     .controls { max-width: none; width: 100%; justify-content: stretch; }
   }
+
+  /* --- 비밀번호 게이트 --- */
+  .auth-gate {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+  .auth-box {
+    background: var(--card);
+    padding: 2.25rem 2.25rem 2rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border);
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+  }
+  .auth-box img {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    margin-bottom: 0.75rem;
+  }
+  .auth-box h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.4rem;
+  }
+  .auth-box .auth-sub {
+    font-size: 0.85rem;
+    color: var(--text-subtle);
+    margin-bottom: 1.5rem;
+  }
+  .auth-box input {
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 0.7rem;
+    box-sizing: border-box;
+  }
+  .auth-box input:focus { border-color: var(--accent); }
+  .auth-box button {
+    width: 100%;
+    padding: 0.7rem;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .auth-box button:hover { background: var(--accent-hover, #4338ca); }
+  .auth-err {
+    color: #dc2626;
+    font-size: 0.82rem;
+    margin-top: 0.75rem;
+    min-height: 1.2em;
+  }
 </style>
 </head>
 <body>
+
+<div id="auth-gate" class="auth-gate">
+  <div class="auth-box">
+    <img src="logo.png" alt="">
+    <h2>주간업무계획</h2>
+    <p class="auth-sub">교직원 전용 페이지입니다.<br>비밀번호를 입력해 주세요.</p>
+    <input type="password" id="auth-pw" placeholder="비밀번호" autocomplete="current-password">
+    <button id="auth-btn">확인</button>
+    <div class="auth-err" id="auth-err"></div>
+  </div>
+</div>
 
 <header>
   <div class="header-inner">
@@ -444,6 +525,50 @@
 <footer>
   <span class="powered">Powered by TW.graphy</span>
 </footer>
+
+<script>
+/* --- 비밀번호 게이트 --- */
+(function () {
+  const AUTH_HASH = '8780096448d6ec87cc3fae794c892fd14d4f35fe4501fd9a7186c2cd9b1de339';
+  const AUTH_KEY = 'duru-auth-v1';
+  const gate = document.getElementById('auth-gate');
+  const pw = document.getElementById('auth-pw');
+  const btn = document.getElementById('auth-btn');
+  const err = document.getElementById('auth-err');
+
+  if (localStorage.getItem(AUTH_KEY) === '1') {
+    gate.remove();
+    return;
+  }
+
+  document.body.style.overflow = 'hidden';
+
+  async function sha256(text) {
+    const buf = new TextEncoder().encode(text);
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hash))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  async function submit() {
+    const h = await sha256(pw.value);
+    if (h === AUTH_HASH) {
+      localStorage.setItem(AUTH_KEY, '1');
+      gate.remove();
+      document.body.style.overflow = '';
+    } else {
+      err.textContent = '비밀번호가 올바르지 않습니다.';
+      pw.value = '';
+      pw.focus();
+    }
+  }
+
+  btn.addEventListener('click', submit);
+  pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  setTimeout(() => pw.focus(), 50);
+})();
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
 <script>
