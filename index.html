@@ -705,18 +705,20 @@ async function load(plan, scrollSidebar = true) {
   }
 }
 
-// 표 셀 안 날짜 표기를 "M.DD.(요일)" 형식으로 통일
+// 표 셀 안 날짜 표기를 "M월 DD일(요일)" 자연형으로 통일
 // MD 원본은 그대로, 렌더링 단계에서만 보정
 //
 // 처리 패턴:
-//   1) "M월 DD일(요일)"   → "M.DD.(요일)"
-//   2) "M월 DD일"         → "M.DD."
-//   3) "M. DD.(요일)"     → "M.DD.(요일)"  (공백 제거)
-//   4) "M. DD."           → "M.DD."        (공백 제거)
-//   5) "M/DD"             → "M.DD."
-//   6) "DD(요일)"         → "{기준월}.DD.(요일)"  (일자만, 파일명의 월 사용)
-//   7) "DD일 + 시간/방향"  → "{기준월}.DD."        (예: "20일 오후")
-//   8) 최종 패스: "M.DD." 중 요일이 없는 건 학년도·달력 기반으로 요일 자동 계산해 붙임
+//   1) "M.DD.(요일)"      → "M월 DD일(요일)"
+//   2) "M. DD." (공백)    → "M월 DD일"
+//   3) "M.DD." (공백없음) → "M월 DD일"
+//   4) "M/DD"             → "M월 DD일"
+//   5) "DD(요일)"         → "{기준월}월 DD일(요일)"  (일자만, 파일명의 월 사용)
+//   6) "DD일 + 시간/방향"  → "{기준월}월 DD일"
+//   7) 최종: "M월 DD일" 뒤 괄호 내용 분석
+//      - 괄호 없음    → 요일 계산해 "(요일)" 추가
+//      - 괄호=요일    → 그대로 유지
+//      - 괄호=기타내용 → "(요일, 기타내용)"로 병합
 //      한국 학년도 규칙: 3~12월은 같은 달력연도, 1~2월은 다음 달력연도
 function normalizeDates(html, defaultMonth, academicYear) {
   if (!defaultMonth) return html;
@@ -733,61 +735,64 @@ function normalizeDates(html, defaultMonth, academicYear) {
     if (!academicYear) return null;
     const calYear = +mo >= 3 ? academicYear : academicYear + 1;
     const dt = new Date(calYear, +mo - 1, +d);
-    // 날짜가 롤오버된 경우(예: 2월 31일) 제외
     if (dt.getMonth() !== +mo - 1 || dt.getDate() !== +d) return null;
     return ['일', '월', '화', '수', '목', '금', '토'][dt.getDay()];
+  }
+
+  // "M월 DD일" + 선택적 괄호 내용 → 자연형 문자열
+  function makeNatural(mo, d, existingParens) {
+    const wd = computeWeekday(mo, d);
+    const base = `${+mo}월 ${d}일`;
+    if (!wd) return existingParens ? `${base}(${existingParens})` : base;
+    if (!existingParens) return `${base}(${wd})`;
+    const inner = existingParens.trim();
+    if (/^[월화수목금토일]$/.test(inner)) return `${base}(${wd})`;
+    return `${base}(${wd}, ${inner})`;
   }
 
   for (const node of textNodes) {
     let text = node.textContent;
 
-    // 1. "M월 DD일(요일)" → "M.DD.(요일)"
-    text = text.replace(
-      /(?<![0-9])(\d{1,2})월\s*(\d{1,2})일\s*\(\s*([월화수목금토일])\s*\)/g,
-      (m, mo, d, w) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.(${w})` : m
-    );
-    // 2. "M월 DD일" → "M.DD."
-    text = text.replace(
-      /(?<![0-9])(\d{1,2})월\s*(\d{1,2})일/g,
-      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.` : m
-    );
-    // 3. "M. DD.(요일)" → "M.DD.(요일)"  (공백 제거)
+    // 1. "M.DD.(요일)" → "M월 DD일(요일)"
     text = text.replace(
       /(?<![0-9.])(\d{1,2})\.\s*(\d{1,2})\.?\s*\(\s*([월화수목금토일])\s*\)/g,
-      (m, mo, d, w) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.(${w})` : m
+      (m, mo, d, w) => (validMonth(mo) && validDay(d)) ? `${+mo}월 ${d}일(${w})` : m
     );
-    // 4. "M. DD." (공백 있음) → "M.DD."
+    // 2. "M. DD." (공백 있음) → "M월 DD일"
     text = text.replace(
       /(?<![0-9.])(\d{1,2})\.\s+(\d{1,2})\.(?![0-9])/g,
-      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.` : m
+      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}월 ${d}일` : m
     );
-    // 5. "M/DD" → "M.DD."
+    // 3. "M.DD." (공백 없음, 요일 없음) → "M월 DD일"
+    text = text.replace(
+      /(?<![0-9.])(\d{1,2})\.(\d{1,2})\.(?!\s*\(\s*[월화수목금토일]\s*\))(?![0-9])/g,
+      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}월 ${d}일` : m
+    );
+    // 4. "M/DD" → "M월 DD일"
     text = text.replace(
       /(?<![0-9\/])(\d{1,2})\/(\d{1,2})(?![0-9\/])/g,
-      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.` : m
+      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}월 ${d}일` : m
     );
-    // 6. "DD(요일)" → "{defaultMonth}.DD.(요일)"
+    // 5. "DD(요일)" → "{defaultMonth}월 DD일(요일)"
     text = text.replace(
       /(?<![0-9.])(\d{1,2})\s*\(\s*([월화수목금토일])\s*\)/g,
-      (m, d, w) => validDay(d) ? `${defaultMonth}.${d}.(${w})` : m
+      (m, d, w) => validDay(d) ? `${defaultMonth}월 ${d}일(${w})` : m
     );
-    // 7. "DD일 + 시간/방향" → "{defaultMonth}.DD."
+    // 6. "DD일 + 시간/방향" → "{defaultMonth}월 DD일"
     text = text.replace(
       /(?<![0-9])(\d{1,2})일(?=\s*(?:오전|오후|아침|점심|저녁|밤|새벽|부터|까지|이후|이전|~|\d+시))/g,
       (m, d, offset, full) => {
         const before = full.substring(Math.max(0, offset - 3), offset);
         if (/월\s*$/.test(before)) return m;
-        return validDay(d) ? `${defaultMonth}.${d}.` : m;
+        return validDay(d) ? `${defaultMonth}월 ${d}일` : m;
       }
     );
-
-    // 8. 최종: "M.DD." 뒤에 (요일)이 없으면 달력 기반으로 자동 추가
+    // 7. 최종: "M월 DD일 (+ 괄호내용)" → 요일 자동 계산·병합
     text = text.replace(
-      /(?<![0-9.])(\d{1,2})\.(\d{1,2})\.(?!\s*\(\s*[월화수목금토일]\s*\))/g,
-      (m, mo, d) => {
+      /(?<![0-9])(\d{1,2})월\s*(\d{1,2})일(\s*\(([^)]*)\))?/g,
+      (m, mo, d, pm, pc) => {
         if (!validMonth(mo) || !validDay(d)) return m;
-        const wd = computeWeekday(mo, d);
-        return wd ? `${m}(${wd})` : m;
+        return makeNatural(mo, d, pc);
       }
     );
 
