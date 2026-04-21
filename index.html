@@ -705,10 +705,17 @@ async function load(plan, scrollSidebar = true) {
   }
 }
 
-// 표 셀 안 날짜 표기를 통일 (MD 원본은 그대로, 렌더링 단계에서만 보정)
-//   "20(월)" → "4.20.(월)"
-//   "20일 오후" → "4.20. 오후" (시간·방향 표현이 따라올 때만)
-// 문서의 기준 월(plan.month)을 붙여 표기를 통일한다.
+// 표 셀 안 날짜 표기를 "M.DD.(요일)" / "M.DD." 형식으로 통일
+// MD 원본은 그대로, 렌더링 단계에서만 보정
+//
+// 처리 패턴:
+//   1) "M월 DD일(요일)"   → "M.DD.(요일)"
+//   2) "M월 DD일"         → "M.DD."
+//   3) "M. DD.(요일)"     → "M.DD.(요일)"  (공백 제거)
+//   4) "M. DD."           → "M.DD."        (공백 제거)
+//   5) "M/DD"             → "M.DD."
+//   6) "DD(요일)"         → "{기준월}.DD.(요일)"  (일자만 있을 때, 파일명의 월 사용)
+//   7) "DD일 + 시간/방향"  → "{기준월}.DD."        (예: "20일 오후", "20일 부터")
 function normalizeDates(html, defaultMonth) {
   if (!defaultMonth) return html;
   const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -717,30 +724,51 @@ function normalizeDates(html, defaultMonth) {
   let n;
   while ((n = walker.nextNode())) textNodes.push(n);
 
-  // 패턴 A: DD(요일)  — 날짜임이 명백
-  const weekdayRe = /(?<![0-9.])(\d{1,2})\s*\(\s*([월화수목금토일])\s*\)/g;
-  // 패턴 B: DD일 + 명확한 시간/방향 맥락
-  //   뒤에 오전|오후|아침|점심|저녁|밤|새벽|부터|까지|이후|이전|~ 또는 숫자+시 가 올 때만 치환
-  //   직전이 "숫자" 또는 "월" 이면 제외 (5월 4일, 15일 같은 경우 방지 X — '월' 바로 뒤는 제외)
-  const dayRe = /(?<![0-9])(\d{1,2})일(?=\s*(?:오전|오후|아침|점심|저녁|밤|새벽|부터|까지|이후|이전|~|\d+시))/g;
+  const validDay = (d) => { const x = +d; return x >= 1 && x <= 31; };
+  const validMonth = (m) => { const x = +m; return x >= 1 && x <= 12; };
 
   for (const node of textNodes) {
     let text = node.textContent;
 
-    text = text.replace(weekdayRe, (m, d, w) => {
-      const dayNum = +d;
-      if (dayNum < 1 || dayNum > 31) return m;
-      return `${defaultMonth}.${d}.(${w})`;
-    });
-
-    text = text.replace(dayRe, (m, d, offset, full) => {
-      // 직전 3글자가 "월" 로 끝나면 이미 월-일 조합이므로 제외
-      const before = full.substring(Math.max(0, offset - 3), offset);
-      if (/월\s*$/.test(before)) return m;
-      const dayNum = +d;
-      if (dayNum < 1 || dayNum > 31) return m;
-      return `${defaultMonth}.${d}.`;
-    });
+    // 1. "M월 DD일(요일)" → "M.DD.(요일)"
+    text = text.replace(
+      /(?<![0-9])(\d{1,2})월\s*(\d{1,2})일\s*\(\s*([월화수목금토일])\s*\)/g,
+      (m, mo, d, w) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.(${w})` : m
+    );
+    // 2. "M월 DD일" → "M.DD."
+    text = text.replace(
+      /(?<![0-9])(\d{1,2})월\s*(\d{1,2})일/g,
+      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.` : m
+    );
+    // 3. "M. DD.(요일)" → "M.DD.(요일)"  (공백 제거)
+    text = text.replace(
+      /(?<![0-9.])(\d{1,2})\.\s*(\d{1,2})\.?\s*\(\s*([월화수목금토일])\s*\)/g,
+      (m, mo, d, w) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.(${w})` : m
+    );
+    // 4. "M. DD." (공백 있음) → "M.DD."
+    text = text.replace(
+      /(?<![0-9.])(\d{1,2})\.\s+(\d{1,2})\.(?![0-9])/g,
+      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.` : m
+    );
+    // 5. "M/DD" → "M.DD."
+    text = text.replace(
+      /(?<![0-9\/])(\d{1,2})\/(\d{1,2})(?![0-9\/])/g,
+      (m, mo, d) => (validMonth(mo) && validDay(d)) ? `${+mo}.${d}.` : m
+    );
+    // 6. "DD(요일)" → "{defaultMonth}.DD.(요일)"
+    text = text.replace(
+      /(?<![0-9.])(\d{1,2})\s*\(\s*([월화수목금토일])\s*\)/g,
+      (m, d, w) => validDay(d) ? `${defaultMonth}.${d}.(${w})` : m
+    );
+    // 7. "DD일 + 시간/방향" → "{defaultMonth}.DD."
+    text = text.replace(
+      /(?<![0-9])(\d{1,2})일(?=\s*(?:오전|오후|아침|점심|저녁|밤|새벽|부터|까지|이후|이전|~|\d+시))/g,
+      (m, d, offset, full) => {
+        const before = full.substring(Math.max(0, offset - 3), offset);
+        if (/월\s*$/.test(before)) return m;
+        return validDay(d) ? `${defaultMonth}.${d}.` : m;
+      }
+    );
 
     if (text !== node.textContent) node.textContent = text;
   }
