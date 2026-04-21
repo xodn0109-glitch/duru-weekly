@@ -696,7 +696,7 @@ async function load(plan, scrollSidebar = true) {
     if (!res.ok) throw new Error(res.status);
     const md = await res.text();
     const rendered = marked.parse(md);
-    const normalized = normalizeDates(rendered, plan.month);
+    const normalized = normalizeDates(rendered, plan.month, plan.year);
     const beautified = beautifyCells(normalized);
     currentHTML = wrapWithMeta(beautified, plan);
     applyFilters();
@@ -705,7 +705,7 @@ async function load(plan, scrollSidebar = true) {
   }
 }
 
-// 표 셀 안 날짜 표기를 "M.DD.(요일)" / "M.DD." 형식으로 통일
+// 표 셀 안 날짜 표기를 "M.DD.(요일)" 형식으로 통일
 // MD 원본은 그대로, 렌더링 단계에서만 보정
 //
 // 처리 패턴:
@@ -714,9 +714,11 @@ async function load(plan, scrollSidebar = true) {
 //   3) "M. DD.(요일)"     → "M.DD.(요일)"  (공백 제거)
 //   4) "M. DD."           → "M.DD."        (공백 제거)
 //   5) "M/DD"             → "M.DD."
-//   6) "DD(요일)"         → "{기준월}.DD.(요일)"  (일자만 있을 때, 파일명의 월 사용)
-//   7) "DD일 + 시간/방향"  → "{기준월}.DD."        (예: "20일 오후", "20일 부터")
-function normalizeDates(html, defaultMonth) {
+//   6) "DD(요일)"         → "{기준월}.DD.(요일)"  (일자만, 파일명의 월 사용)
+//   7) "DD일 + 시간/방향"  → "{기준월}.DD."        (예: "20일 오후")
+//   8) 최종 패스: "M.DD." 중 요일이 없는 건 학년도·달력 기반으로 요일 자동 계산해 붙임
+//      한국 학년도 규칙: 3~12월은 같은 달력연도, 1~2월은 다음 달력연도
+function normalizeDates(html, defaultMonth, academicYear) {
   if (!defaultMonth) return html;
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
@@ -726,6 +728,15 @@ function normalizeDates(html, defaultMonth) {
 
   const validDay = (d) => { const x = +d; return x >= 1 && x <= 31; };
   const validMonth = (m) => { const x = +m; return x >= 1 && x <= 12; };
+
+  function computeWeekday(mo, d) {
+    if (!academicYear) return null;
+    const calYear = +mo >= 3 ? academicYear : academicYear + 1;
+    const dt = new Date(calYear, +mo - 1, +d);
+    // 날짜가 롤오버된 경우(예: 2월 31일) 제외
+    if (dt.getMonth() !== +mo - 1 || dt.getDate() !== +d) return null;
+    return ['일', '월', '화', '수', '목', '금', '토'][dt.getDay()];
+  }
 
   for (const node of textNodes) {
     let text = node.textContent;
@@ -767,6 +778,16 @@ function normalizeDates(html, defaultMonth) {
         const before = full.substring(Math.max(0, offset - 3), offset);
         if (/월\s*$/.test(before)) return m;
         return validDay(d) ? `${defaultMonth}.${d}.` : m;
+      }
+    );
+
+    // 8. 최종: "M.DD." 뒤에 (요일)이 없으면 달력 기반으로 자동 추가
+    text = text.replace(
+      /(?<![0-9.])(\d{1,2})\.(\d{1,2})\.(?!\s*\(\s*[월화수목금토일]\s*\))/g,
+      (m, mo, d) => {
+        if (!validMonth(mo) || !validDay(d)) return m;
+        const wd = computeWeekday(mo, d);
+        return wd ? `${m}(${wd})` : m;
       }
     );
 
